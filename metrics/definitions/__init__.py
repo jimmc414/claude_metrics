@@ -15,6 +15,12 @@ from . import category_a
 from . import category_b
 from . import category_c
 from . import category_d
+from . import category_e
+from . import category_f
+from . import category_g
+from . import category_h
+from . import category_i
+from . import category_j
 
 __all__ = [
     "MetricType",
