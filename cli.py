@@ -178,7 +178,7 @@ def cmd_metrics_calculate(args):
     if categories:
         console.print(f"Categories: [cyan]{', '.join(categories)}[/cyan]")
     else:
-        console.print(f"Categories: [cyan]all (A, B, C, D)[/cyan]")
+        console.print(f"Categories: [cyan]all (A-J)[/cyan]")
 
     console.print()
 
@@ -356,7 +356,7 @@ def cmd_metrics_list(args):
     if args.category:
         categories = [args.category.upper()]
     else:
-        categories = ["A", "B", "C", "D"]
+        categories = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
 
     for category in categories:
         metrics = get_metrics_by_category(category)
@@ -462,7 +462,7 @@ def main():
     metrics_calc_parser.add_argument(
         "--category", "-c",
         action="append",
-        choices=["A", "B", "C", "D"],
+        choices=["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"],
         help="Categories to calculate (can repeat, default: all)",
     )
     metrics_calc_parser.add_argument(
@@ -478,7 +478,7 @@ def main():
     )
     metrics_list_parser.add_argument(
         "--category", "-c",
-        choices=["A", "B", "C", "D"],
+        choices=["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"],
         help="Filter by category",
     )
     metrics_list_parser.set_defaults(func=cmd_metrics_list)

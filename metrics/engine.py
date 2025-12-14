@@ -17,6 +17,12 @@ from .calculators.category_a import CategoryACalculator
 from .calculators.category_b import CategoryBCalculator
 from .calculators.category_c import CategoryCCalculator
 from .calculators.category_d import CategoryDCalculator
+from .calculators.category_e import CategoryECalculator
+from .calculators.category_f import CategoryFCalculator
+from .calculators.category_g import CategoryGCalculator
+from .calculators.category_h import CategoryHCalculator
+from .calculators.category_i import CategoryICalculator
+from .calculators.category_j import CategoryJCalculator
 
 
 class DerivedMetricsEngine:
@@ -32,10 +38,16 @@ class DerivedMetricsEngine:
         "B": CategoryBCalculator,
         "C": CategoryCCalculator,
         "D": CategoryDCalculator,
+        "E": CategoryECalculator,
+        "F": CategoryFCalculator,
+        "G": CategoryGCalculator,
+        "H": CategoryHCalculator,
+        "I": CategoryICalculator,
+        "J": CategoryJCalculator,
     }
 
     # Order in which categories should be calculated (for dependencies)
-    CATEGORY_ORDER = ["A", "B", "C", "D"]
+    CATEGORY_ORDER = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
 
     def __init__(self, data: ExtractedData30Day):
         """Initialize the engine.
