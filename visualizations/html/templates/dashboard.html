@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+
+{% block title %}Claude Metrics Dashboard - {{ window_days }} Day Report{% endblock %}
+
+{% block content %}
+<!-- Summary Section -->
+<section class="section" id="summary">
+    <h2 class="section-title">Key Metrics Summary</h2>
+    <div class="grid grid-4">
+        <div class="metric-card">
+            <div class="label">Sessions</div>
+            <div class="value">{{ total_sessions | format_number }}</div>
+            <div class="subvalue">{{ sessions_per_day | format_number(2) }}/day avg</div>
+        </div>
+        <div class="metric-card">
+            <div class="label">Messages</div>
+            <div class="value">{{ total_messages | format_number }}</div>
+            <div class="subvalue">{{ messages_per_session | format_number(1) }}/session avg</div>
+        </div>
+        <div class="metric-card">
+            <div class="label">Tool Calls</div>
+            <div class="value">{{ total_tool_calls | format_number }}</div>
+            <div class="subvalue">{{ tools_per_message | format_number(2) }}/message avg</div>
+        </div>
+        <div class="metric-card">
+            <div class="label">Total Cost</div>
+            <div class="value">{{ total_cost | format_currency }}</div>
+            <div class="subvalue">{{ cost_per_session | format_currency }}/session avg</div>
+        </div>
+    </div>
+</section>
+
+<!-- Activity Section -->
+<section class="section" id="activity">
+    <h2 class="section-title">Activity Patterns</h2>
+    <div class="grid grid-2">
+        <div>
+            <h3 class="text-muted mb-4">Daily Activity Trend</h3>
+            <div class="chart-container" id="daily-activity-chart"></div>
+        </div>
+        <div>
+            <h3 class="text-muted mb-4">Activity by Time of Day</h3>
+            <div class="chart-container" id="hourly-chart"></div>
+        </div>
+    </div>
+    <div class="grid grid-4 mt-4">
+        <div class="metric-card">
+            <div class="label">Active Days</div>
+            <div class="value">{{ active_days }}</div>
+            <div class="subvalue">of {{ window_days }} days</div>
+        </div>
+        <div class="metric-card">
+            <div class="label">Current Streak</div>
+            <div class="value">{{ current_streak }}</div>
+            <div class="subvalue">consecutive days</div>
+        </div>
+        <div class="metric-card">
+            <div class="label">Peak Hour</div>
+            <div class="value">{{ peak_hour }}:00</div>
+            <div class="subvalue">most active</div>
+        </div>
+        <div class="metric-card">
+            <div class="label">Avg Session</div>
+            <div class="value">{{ avg_session_duration }}</div>
+            <div class="subvalue">duration</div>
+        </div>
+    </div>
+</section>
+
+<!-- Tools Section -->
+<section class="section" id="tools">
+    <h2 class="section-title">Tool Usage</h2>
+    <div class="grid grid-2">
+        <div>
+            <h3 class="text-muted mb-4">Tool Distribution</h3>
+            <div class="chart-container" id="tool-distribution-chart"></div>
+        </div>
+        <div>
+            <h3 class="text-muted mb-4">Tool Usage Trend</h3>
+            <div class="chart-container" id="tool-trend-chart"></div>
+        </div>
+    </div>
+    <div class="grid grid-4 mt-4">
+        <div class="metric-card">
+            <div class="label">Most Used</div>
+            <div class="value">{{ most_used_tool }}</div>
+            <div class="subvalue">{{ most_used_tool_count | format_number }} calls</div>
+        </div>
+        <div class="metric-card">
+            <div class="label">Success Rate</div>
+            <div class="value {% if tool_success_rate >= 0.95 %}text-success{% elif tool_success_rate >= 0.85 %}text-warning{% else %}text-error{% endif %}">{{ tool_success_rate | format_percentage }}</div>
+            <div class="subvalue">tool executions</div>
+        </div>
+        <div class="metric-card">
+            <div class="label">Tools/Message</div>
+            <div class="value">{{ tools_per_message | format_number(2) }}</div>
+            <div class="subvalue">average</div>
+        </div>
+        <div class="metric-card">
+            <div class="label">Unique Tools</div>
+            <div class="value">{{ unique_tools }}</div>
+            <div class="subvalue">used in period</div>
+        </div>
+    </div>
+</section>
+
+<!-- Files Section -->
+<section class="section" id="files">
+    <h2 class="section-title">File Operations</h2>
+    <div class="grid grid-2">
+        <div>
+            <h3 class="text-muted mb-4">File Type Distribution</h3>
+            <div class="chart-container" id="file-type-chart"></div>
+        </div>
+        <div>
+            <h3 class="text-muted mb-4">Read vs Edit Operations</h3>
+            <div class="chart-container" id="file-ops-chart"></div>
+        </div>
+    </div>
+    <div class="grid grid-4 mt-4">
+        <div class="metric-card">
+            <div class="label">Files Read</div>
+            <div class="value">{{ files_read }}</div>
+            <div class="subvalue">unique files</div>
+        </div>
+        <div class="metric-card">
+            <div class="label">Files Edited</div>
+            <div class="value">{{ files_edited }}</div>
+            <div class="subvalue">unique files</div>
+        </div>
+        <div class="metric-card">
+            <div class="label">Read/Write Ratio</div>
+            <div class="value">{{ read_write_ratio | format_number(1) }}:1</div>
+            <div class="subvalue">reads per edit</div>
+        </div>
+        <div class="metric-card">
+            <div class="label">File Churn</div>
+            <div class="value">{{ file_churn | format_number(1) }}</div>
+            <div class="subvalue">edits/day</div>
+        </div>
+    </div>
+</section>
+
+<!-- Models Section -->
+<section class="section" id="models">
+    <h2 class="section-title">Model Usage</h2>
+    <div class="grid grid-2">
+        <div>
+            <h3 class="text-muted mb-4">Model Distribution</h3>
+            <div class="chart-container" id="model-distribution-chart"></div>
+        </div>
+        <div>
+            <h3 class="text-muted mb-4">Token Consumption</h3>
+            <div class="chart-container" id="token-chart"></div>
+        </div>
+    </div>
+    <div class="grid grid-4 mt-4">
+        <div class="metric-card">
+            <div class="label">Primary Model</div>
+            <div class="value">{{ primary_model }}</div>
+            <div class="subvalue">most used</div>
+        </div>
+        <div class="metric-card">
+            <div class="label">Total Tokens</div>
+            <div class="value">{{ total_tokens | format_number }}</div>
+            <div class="subvalue">input + output</div>
+        </div>
+        <div class="metric-card">
+            <div class="label">Cache Hit Rate</div>
+            <div class="value {% if cache_hit_rate >= 0.5 %}text-success{% elif cache_hit_rate >= 0.2 %}text-warning{% else %}text-error{% endif %}">{{ cache_hit_rate | format_percentage }}</div>
+            <div class="subvalue">efficiency</div>
+        </div>
+        <div class="metric-card">
+            <div class="label">Cache Savings</div>
+            <div class="value text-success">{{ cache_savings | format_currency }}</div>
+            <div class="subvalue">estimated</div>
+        </div>
+    </div>
+</section>
+
+<!-- Cost Section -->
+<section class="section" id="costs">
+    <h2 class="section-title">Cost Analysis</h2>
+    <div class="grid grid-2">
+        <div>
+            <h3 class="text-muted mb-4">Daily Cost Trend</h3>
+            <div class="chart-container" id="cost-trend-chart"></div>
+        </div>
+        <div>
+            <h3 class="text-muted mb-4">Cost by Model</h3>
+            <div class="chart-container" id="cost-model-chart"></div>
+        </div>
+    </div>
+    <div class="grid grid-4 mt-4">
+        <div class="metric-card">
+            <div class="label">Total Cost</div>
+            <div class="value">{{ total_cost | format_currency }}</div>
+            <div class="subvalue">{{ window_days }} days</div>
+        </div>
+        <div class="metric-card">
+            <div class="label">Daily Average</div>
+            <div class="value">{{ daily_cost | format_currency }}</div>
+            <div class="subvalue">per day</div>
+        </div>
+        <div class="metric-card">
+            <div class="label">Cost/Session</div>
+            <div class="value">{{ cost_per_session | format_currency }}</div>
+            <div class="subvalue">average</div>
+        </div>
+        <div class="metric-card">
+            <div class="label">Cost/Message</div>
+            <div class="value">{{ cost_per_message | format_currency(4) }}</div>
+            <div class="subvalue">average</div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Chart configurations
+const chartConfig = {responsive: true, displayModeBar: false};
+
+// Daily Activity Chart
+{% if daily_activity_chart %}
+Plotly.newPlot('daily-activity-chart', {{ daily_activity_chart.data | tojson }}, {{ daily_activity_chart.layout | tojson }}, chartConfig);
+{% endif %}
+
+// Hourly Distribution Chart
+{% if hourly_chart %}
+Plotly.newPlot('hourly-chart', {{ hourly_chart.data | tojson }}, {{ hourly_chart.layout | tojson }}, chartConfig);
+{% endif %}
+
+// Tool Distribution Chart
+{% if tool_distribution_chart %}
+Plotly.newPlot('tool-distribution-chart', {{ tool_distribution_chart.data | tojson }}, {{ tool_distribution_chart.layout | tojson }}, chartConfig);
+{% endif %}
+
+// Tool Trend Chart
+{% if tool_trend_chart %}
+Plotly.newPlot('tool-trend-chart', {{ tool_trend_chart.data | tojson }}, {{ tool_trend_chart.layout | tojson }}, chartConfig);
+{% endif %}
+
+// File Type Chart
+{% if file_type_chart %}
+Plotly.newPlot('file-type-chart', {{ file_type_chart.data | tojson }}, {{ file_type_chart.layout | tojson }}, chartConfig);
+{% endif %}
+
+// File Operations Chart
+{% if file_ops_chart %}
+Plotly.newPlot('file-ops-chart', {{ file_ops_chart.data | tojson }}, {{ file_ops_chart.layout | tojson }}, chartConfig);
+{% endif %}
+
+// Model Distribution Chart
+{% if model_distribution_chart %}
+Plotly.newPlot('model-distribution-chart', {{ model_distribution_chart.data | tojson }}, {{ model_distribution_chart.layout | tojson }}, chartConfig);
+{% endif %}
+
+// Token Chart
+{% if token_chart %}
+Plotly.newPlot('token-chart', {{ token_chart.data | tojson }}, {{ token_chart.layout | tojson }}, chartConfig);
+{% endif %}
+
+// Cost Trend Chart
+{% if cost_trend_chart %}
+Plotly.newPlot('cost-trend-chart', {{ cost_trend_chart.data | tojson }}, {{ cost_trend_chart.layout | tojson }}, chartConfig);
+{% endif %}
+
+// Cost by Model Chart
+{% if cost_model_chart %}
+Plotly.newPlot('cost-model-chart', {{ cost_model_chart.data | tojson }}, {{ cost_model_chart.layout | tojson }}, chartConfig);
+{% endif %}
+</script>
+{% endblock %}

@@ -165,6 +165,226 @@ def cmd_summary(args):
                 console.print(f"    {key}: {value}")
 
 
+def cmd_metrics_calculate(args):
+    """Calculate derived metrics from Claude Code data."""
+    from extraction import TimeFilteredExtractor
+    from metrics import DerivedMetricsEngine
+    from metrics.definitions import METRIC_DEFINITIONS
+
+    console.print(f"\n[bold]Claude Metrics - Derived Metrics Calculator[/bold]\n")
+    console.print(f"Time window: [cyan]{args.days} days[/cyan]")
+
+    categories = list(args.category) if args.category else None
+    if categories:
+        console.print(f"Categories: [cyan]{', '.join(categories)}[/cyan]")
+    else:
+        console.print(f"Categories: [cyan]all (A, B, C, D)[/cyan]")
+
+    console.print()
+
+    # Extract data with progress
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Extracting data...", total=None)
+        extractor = TimeFilteredExtractor(days=args.days)
+        data = extractor.extract()
+        progress.update(task, description="[green]Data extracted[/green]")
+
+    # Show extraction summary
+    console.print(f"Sessions: [cyan]{data.total_sessions}[/cyan]")
+    console.print(f"Messages: [cyan]{data.total_messages}[/cyan]")
+    console.print(f"Tool calls: [cyan]{data.total_tool_calls}[/cyan]")
+    console.print(f"Total cost: [cyan]${data.total_cost_usd:.2f}[/cyan]")
+    console.print()
+
+    # Calculate metrics
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Calculating metrics...", total=None)
+
+        def on_progress(metric_id: str, status: str):
+            if status == "calculating":
+                progress.update(task, description=f"Calculating [cyan]{metric_id}[/cyan]...")
+            elif status == "done":
+                progress.update(task, description=f"Calculated [green]{metric_id}[/green]")
+
+        engine = DerivedMetricsEngine(data)
+        results = engine.calculate_all(categories=categories, progress_callback=on_progress)
+
+    # Show summary
+    summary = engine.get_summary()
+    console.print(f"\n[bold]Calculation Summary[/bold]\n")
+    console.print(f"Metrics calculated: [green]{summary['total_calculated']}[/green]")
+    console.print(f"Errors: [{'red' if summary['total_errors'] > 0 else 'green'}]{summary['total_errors']}[/{'red' if summary['total_errors'] > 0 else 'green'}]")
+
+    # Show metrics by category
+    console.print("\n[bold]By Category:[/bold]")
+    for cat, cat_info in sorted(summary.get("categories", {}).items()):
+        console.print(f"  Category {cat}: [cyan]{cat_info['count']} metrics[/cyan]")
+
+    # Output results
+    if args.output:
+        output_path = Path(args.output)
+        engine.to_json(output_path)
+        console.print(f"\n[green]Results saved to:[/green] {output_path}")
+    else:
+        # Show sample metrics
+        console.print("\n[bold]Sample Metrics:[/bold]\n")
+
+        table = Table(show_header=True)
+        table.add_column("ID", style="cyan")
+        table.add_column("Name")
+        table.add_column("Value", style="green")
+        table.add_column("Unit")
+
+        # Show first 15 metrics
+        count = 0
+        for metric_id, value in sorted(results.items()):
+            if count >= 15:
+                break
+            definition = METRIC_DEFINITIONS.get(metric_id)
+            if definition:
+                val_str = str(value.value)
+                if isinstance(value.value, float):
+                    val_str = f"{value.value:.4f}"
+                elif isinstance(value.value, dict):
+                    val_str = f"{{...}} ({len(value.value)} items)"
+                table.add_row(
+                    metric_id,
+                    definition.name,
+                    val_str[:30],
+                    definition.unit or "-",
+                )
+                count += 1
+
+        console.print(table)
+        console.print(f"\n... and {len(results) - 15} more metrics")
+        console.print("\nUse [cyan]--output FILE[/cyan] to save all results to JSON")
+
+    # Show errors if any
+    errors = engine.get_errors()
+    if errors:
+        console.print(f"\n[bold red]Errors ({len(errors)}):[/bold red]")
+        for err in errors[:5]:
+            console.print(f"  [red]•[/red] {err['metric_id']}: {err['error']}")
+        if len(errors) > 5:
+            console.print(f"  ... and {len(errors) - 5} more errors")
+
+
+def cmd_metrics_report(args):
+    """Generate a metrics report."""
+    from extraction import TimeFilteredExtractor
+    from metrics import DerivedMetricsEngine
+
+    console.print(f"\n[bold]Claude Metrics - Report Generator[/bold]\n")
+    console.print(f"Time window: [cyan]{args.days} days[/cyan]")
+
+    output_format = getattr(args, "format", "terminal")
+    if output_format == "html":
+        console.print(f"Format: [cyan]HTML[/cyan]")
+    else:
+        console.print(f"Theme: [cyan]{args.theme}[/cyan]")
+    console.print()
+
+    # Extract data with progress
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Extracting data...", total=None)
+        extractor = TimeFilteredExtractor(days=args.days)
+        data = extractor.extract()
+        progress.update(task, description="[green]Data extracted[/green]")
+
+    # Calculate metrics
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Calculating metrics...", total=None)
+        engine = DerivedMetricsEngine(data)
+        metrics = engine.calculate_all()
+        progress.update(task, description=f"[green]{len(metrics)} metrics calculated[/green]")
+
+    console.print()
+
+    # Generate report based on format
+    if output_format == "html":
+        from visualizations.html import DashboardGenerator
+
+        output_path = Path(args.output) if args.output else Path("claude_metrics_report.html")
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Generating HTML dashboard...", total=None)
+            generator = DashboardGenerator(data, metrics)
+            generator.generate(output_path)
+            progress.update(task, description="[green]Dashboard generated[/green]")
+
+        console.print(f"\n[green]HTML report saved to:[/green] {output_path}")
+        console.print(f"Open in a browser to view the interactive dashboard.")
+
+    else:
+        from visualizations.terminal import TerminalReport, get_theme
+
+        theme = get_theme(args.theme)
+        report = TerminalReport(data, metrics, theme=theme, console=console)
+
+        if args.detail:
+            report.print_all_metrics()
+        else:
+            report.print_full_report()
+
+
+def cmd_metrics_list(args):
+    """List available derived metrics."""
+    from metrics.definitions import METRIC_DEFINITIONS, get_metrics_by_category
+
+    console.print(f"\n[bold]Claude Metrics - Available Derived Metrics[/bold]\n")
+
+    if args.category:
+        categories = [args.category.upper()]
+    else:
+        categories = ["A", "B", "C", "D"]
+
+    for category in categories:
+        metrics = get_metrics_by_category(category)
+        if not metrics:
+            continue
+
+        console.print(f"\n[bold]Category {category}[/bold] ({len(metrics)} metrics)")
+
+        table = Table(show_header=True)
+        table.add_column("ID", style="cyan", width=6)
+        table.add_column("Name", width=30)
+        table.add_column("Type", width=12)
+        table.add_column("Description")
+
+        for m in sorted(metrics, key=lambda x: x.id):
+            table.add_row(
+                m.id,
+                m.name,
+                m.metric_type.value,
+                m.description[:50] + ("..." if len(m.description) > 50 else ""),
+            )
+
+        console.print(table)
+
+    total = len(METRIC_DEFINITIONS)
+    console.print(f"\n[bold]Total:[/bold] [cyan]{total}[/cyan] derived metrics defined")
+
+
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -223,11 +443,91 @@ def main():
     )
     summary_parser.set_defaults(func=cmd_summary)
 
+    # Metrics command group
+    metrics_parser = subparsers.add_parser(
+        "metrics", help="Derived metrics commands"
+    )
+    metrics_subparsers = metrics_parser.add_subparsers(dest="metrics_command")
+
+    # Metrics calculate command
+    metrics_calc_parser = metrics_subparsers.add_parser(
+        "calculate", help="Calculate derived metrics"
+    )
+    metrics_calc_parser.add_argument(
+        "--days", "-d",
+        type=int,
+        default=30,
+        help="Time window in days (default: 30)",
+    )
+    metrics_calc_parser.add_argument(
+        "--category", "-c",
+        action="append",
+        choices=["A", "B", "C", "D"],
+        help="Categories to calculate (can repeat, default: all)",
+    )
+    metrics_calc_parser.add_argument(
+        "--output", "-o",
+        type=str,
+        help="Output JSON file path",
+    )
+    metrics_calc_parser.set_defaults(func=cmd_metrics_calculate)
+
+    # Metrics list command
+    metrics_list_parser = metrics_subparsers.add_parser(
+        "list", help="List available derived metrics"
+    )
+    metrics_list_parser.add_argument(
+        "--category", "-c",
+        choices=["A", "B", "C", "D"],
+        help="Filter by category",
+    )
+    metrics_list_parser.set_defaults(func=cmd_metrics_list)
+
+    # Metrics report command
+    metrics_report_parser = metrics_subparsers.add_parser(
+        "report", help="Generate a visual metrics report"
+    )
+    metrics_report_parser.add_argument(
+        "--days", "-d",
+        type=int,
+        default=30,
+        help="Time window in days (default: 30)",
+    )
+    metrics_report_parser.add_argument(
+        "--format", "-f",
+        choices=["terminal", "html"],
+        default="terminal",
+        help="Output format (default: terminal)",
+    )
+    metrics_report_parser.add_argument(
+        "--output", "-o",
+        type=str,
+        help="Output file path (for HTML format)",
+    )
+    metrics_report_parser.add_argument(
+        "--theme", "-t",
+        choices=["default", "mono", "dark"],
+        default="default",
+        help="Color theme for terminal output (default: default)",
+    )
+    metrics_report_parser.add_argument(
+        "--detail",
+        action="store_true",
+        help="Show detailed metrics by category (terminal only)",
+    )
+    metrics_report_parser.set_defaults(func=cmd_metrics_report)
+
     args = parser.parse_args()
 
     if args.command is None:
         parser.print_help()
         sys.exit(1)
+
+    # Handle metrics subcommand
+    if args.command == "metrics":
+        if not hasattr(args, "metrics_command") or args.metrics_command is None:
+            metrics_parser.print_help()
+            sys.exit(1)
 
     args.func(args)
 

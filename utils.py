@@ -191,3 +191,104 @@ def ensure_dir(path: Path) -> Path:
     """Ensure a directory exists, creating it if necessary."""
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+# Time window helpers for derived metrics
+
+def get_time_window(days: int = 30) -> tuple:
+    """Get time window boundaries for filtering data.
+
+    Args:
+        days: Number of days to include in the window
+
+    Returns:
+        Tuple of (cutoff_datetime, cutoff_iso, cutoff_unix_ms)
+    """
+    from datetime import timedelta
+
+    cutoff = datetime.now() - timedelta(days=days)
+    cutoff_iso = cutoff.isoformat()
+    cutoff_unix_ms = int(cutoff.timestamp() * 1000)
+
+    return cutoff, cutoff_iso, cutoff_unix_ms
+
+
+def is_within_window(
+    timestamp: Optional[Union[str, int, datetime]],
+    cutoff: datetime
+) -> bool:
+    """Check if a timestamp is within the time window.
+
+    Args:
+        timestamp: ISO string, Unix ms, or datetime
+        cutoff: The cutoff datetime for the window
+
+    Returns:
+        True if timestamp is >= cutoff
+    """
+    if timestamp is None:
+        return False
+
+    if isinstance(timestamp, datetime):
+        return timestamp >= cutoff
+
+    if isinstance(timestamp, str):
+        dt = parse_iso_timestamp(timestamp)
+        return dt >= cutoff if dt else False
+
+    if isinstance(timestamp, (int, float)):
+        dt = unix_ms_to_datetime(int(timestamp))
+        return dt >= cutoff if dt else False
+
+    return False
+
+
+def date_to_str(dt: datetime) -> str:
+    """Convert datetime to YYYY-MM-DD string."""
+    return dt.strftime("%Y-%m-%d")
+
+
+def str_to_date(date_str: str) -> Optional[datetime]:
+    """Convert YYYY-MM-DD string to datetime."""
+    try:
+        return datetime.strptime(date_str, "%Y-%m-%d")
+    except (ValueError, TypeError):
+        return None
+
+
+def datetime_to_hour(dt: datetime) -> int:
+    """Extract hour (0-23) from datetime."""
+    return dt.hour
+
+
+def datetime_to_weekday(dt: datetime) -> int:
+    """Extract weekday (0=Monday, 6=Sunday) from datetime."""
+    return dt.weekday()
+
+
+def is_weekend(dt: datetime) -> bool:
+    """Check if datetime falls on weekend."""
+    return dt.weekday() >= 5
+
+
+def get_date_range(start: datetime, end: datetime) -> List[str]:
+    """Get list of date strings between start and end (inclusive).
+
+    Args:
+        start: Start datetime
+        end: End datetime
+
+    Returns:
+        List of YYYY-MM-DD strings
+    """
+    from datetime import timedelta
+
+    dates = []
+    current = start.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_date = end.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    while current <= end_date:
+        dates.append(date_to_str(current))
+        current += timedelta(days=1)
+
+    return dates

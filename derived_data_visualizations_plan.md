@@ -1,46 +1,216 @@
-# Derived Metrics Visualization System - Phase 1 Implementation
+# Derived Metrics Visualization System - Implementation Plan
 
-## Current Focus: Phase 1 - Foundation Infrastructure
+## Current Focus: Phase 4 - HTML Dashboard [COMPLETED]
+
+**Goal**: Build interactive HTML dashboard using Plotly.js and Jinja2
+
+**Status**: All deliverables completed on 2024-12-14
+
+**Deliverables**:
+1. [x] `visualizations/html/__init__.py` - HTML module exports
+2. [x] `visualizations/html/charts/` - Plotly chart wrappers (6 chart types)
+3. [x] `visualizations/html/templates/` - Jinja2 templates (base.html, dashboard.html)
+4. [x] `visualizations/html/generator.py` - DashboardGenerator class
+5. [x] CLI integration with `--format html` option
+
+**Files Created (10 total)**:
+- `visualizations/html/__init__.py`
+- `visualizations/html/charts/__init__.py`
+- `visualizations/html/charts/base.py`
+- `visualizations/html/charts/line.py`
+- `visualizations/html/charts/bar.py`
+- `visualizations/html/charts/pie.py`
+- `visualizations/html/charts/gauge.py`
+- `visualizations/html/charts/heatmap.py`
+- `visualizations/html/charts/scatter.py`
+- `visualizations/html/generator.py`
+- `visualizations/html/templates/base.html`
+- `visualizations/html/templates/dashboard.html`
+
+**Files Modified (2)**:
+- `cli.py` - Added `--format html` and `--output` options to `metrics report`
+- `requirements.txt` - Added jinja2 dependency
+
+**Usage**:
+```bash
+# Generate HTML dashboard
+python cli.py metrics report --format html
+
+# Specify output file
+python cli.py metrics report --format html --output report.html
+
+# Specify time window
+python cli.py metrics report --format html --days 7
+```
+
+**Chart Types Implemented**:
+- [x] LineChart / AreaChart - Time series, trends
+- [x] BarChart / StackedBarChart - Distributions, comparisons
+- [x] PieChart / DonutChart - Proportions
+- [x] GaugeChart / NumberIndicator - KPIs, ratios
+- [x] HeatmapChart / CalendarHeatmap - 2D distributions
+- [x] ScatterChart / BubbleChart - Correlations
+
+**Dashboard Sections**:
+- [x] Key Metrics Summary (sessions, messages, tools, cost)
+- [x] Activity Patterns (daily trend, hourly distribution)
+- [x] Tool Usage (distribution pie, trend line)
+- [x] File Operations (type distribution, read/edit chart)
+- [x] Model Usage (distribution pie, token bar)
+- [x] Cost Analysis (trend line, cost by model)
+
+---
+
+## Phase 3 - Terminal Visualization [COMPLETED]
+
+**Goal**: Build terminal visualization components using Rich library
+
+**Status**: All deliverables completed on 2024-12-14
+
+**Deliverables**:
+1. [x] `visualizations/__init__.py` - Package init
+2. [x] `visualizations/terminal/__init__.py` - Terminal module exports
+3. [x] `visualizations/terminal/themes.py` - Color themes (default, mono, dark)
+4. [x] `visualizations/terminal/components.py` - Visualization building blocks
+5. [x] `visualizations/terminal/report.py` - TerminalReport generator
+6. [x] CLI integration with `metrics report` command
+
+**Files Created (5 total)**:
+- `visualizations/__init__.py`
+- `visualizations/terminal/__init__.py`
+- `visualizations/terminal/themes.py`
+- `visualizations/terminal/components.py`
+- `visualizations/terminal/report.py`
+
+**Files Modified (1)**:
+- `cli.py` - Added `metrics report` command
+
+**Usage**:
+```bash
+# Generate visual report
+python cli.py metrics report
+
+# Specify time window
+python cli.py metrics report --days 7
+
+# Use different theme
+python cli.py metrics report --theme dark
+
+# Show detailed metrics by category
+python cli.py metrics report --detail
+```
+
+**Components Implemented**:
+- [x] Sparklines (trend visualization)
+- [x] Bar charts (horizontal bar charts for distributions)
+- [x] Progress bars (ratio/completion visualization)
+- [x] Gauges (KPI visualization with thresholds)
+- [x] Metric panels (grouped metrics display)
+- [x] Distribution tables (category breakdowns)
+- [x] Trend indicators (change indicators)
+- [x] Summary rows (key metrics at a glance)
+- [x] Formatting utilities (duration, currency, numbers, percentages)
+
+---
+
+## Phase 1 - Foundation Infrastructure [COMPLETED]
 
 **Goal**: Build the extraction layer, metric definitions, and calculation engine for Categories A-D (109 metrics)
 
+**Status**: All deliverables completed on 2024-12-14
+
 **Deliverables**:
-1. `extraction/` package with TimeFilteredExtractor and data classes
-2. `metrics/definitions/` package with MetricDefinition, MetricValue, and A-D definitions
-3. `metrics/calculators/` package with calculation engine and A-D calculators
-4. CLI integration with `metrics calculate` command
+1. [x] `extraction/` package with TimeFilteredExtractor and data classes
+2. [x] `metrics/definitions/` package with MetricDefinition, MetricValue, and A-D definitions
+3. [x] `metrics/calculators/` package with calculation engine and A-D calculators
+4. [x] CLI integration with `metrics calculate` command
+
+**Files Created (20 total)**:
+- `extraction/__init__.py`
+- `extraction/data_classes.py`
+- `extraction/time_filtered.py`
+- `metrics/__init__.py`
+- `metrics/definitions/__init__.py`
+- `metrics/definitions/base.py`
+- `metrics/definitions/category_a.py`
+- `metrics/definitions/category_b.py`
+- `metrics/definitions/category_c.py`
+- `metrics/definitions/category_d.py`
+- `metrics/calculators/__init__.py`
+- `metrics/calculators/base.py`
+- `metrics/calculators/helpers.py`
+- `metrics/calculators/category_a.py`
+- `metrics/calculators/category_b.py`
+- `metrics/calculators/category_c.py`
+- `metrics/calculators/category_d.py`
+- `metrics/engine.py`
+
+**Files Modified (2)**:
+- `utils.py` - Added time window helpers
+- `cli.py` - Added `metrics calculate` and `metrics list` commands
+
+**Usage**:
+```bash
+# Calculate all metrics for past 30 days
+python cli.py metrics calculate
+
+# Calculate specific categories
+python cli.py metrics calculate -c A -c B
+
+# Save results to JSON
+python cli.py metrics calculate --output results.json
+
+# List available metrics
+python cli.py metrics list
+python cli.py metrics list -c A
+```
+
+---
+
+## Documentation Requirements
+
+**After completing each implementation phase:**
+
+1. Mark completed items in this plan document with `[x]` and add completion status
+2. Update `README.md` with:
+   - New CLI commands and usage examples
+   - Updated project structure if new packages were added
+   - Updated roadmap status
+3. Use clear, technical language without emojis or marketing speak
+4. Include concrete code examples that can be copy-pasted
+5. Keep descriptions factual and concise
 
 ---
 
 ## Implementation Order (17 files total)
 
-### Step 1: Data Classes & Extraction (4 files)
-- [ ] `extraction/__init__.py`
-- [ ] `extraction/data_classes.py` - ExtractedData30Day and supporting dataclasses
-- [ ] `extraction/time_filtered.py` - TimeFilteredExtractor class
-- [ ] Update `utils.py` - Add time window helpers
+### Step 1: Data Classes & Extraction (4 files) [COMPLETED]
+- [x] `extraction/__init__.py`
+- [x] `extraction/data_classes.py` - ExtractedData30Day and supporting dataclasses
+- [x] `extraction/time_filtered.py` - TimeFilteredExtractor class
+- [x] Update `utils.py` - Add time window helpers
 
-### Step 2: Metric Definitions (5 files)
-- [ ] `metrics/__init__.py`
-- [ ] `metrics/definitions/__init__.py`
-- [ ] `metrics/definitions/base.py` - MetricDefinition, MetricValue dataclasses
-- [ ] `metrics/definitions/category_a.py` - D001-D028 definitions (28 metrics)
-- [ ] `metrics/definitions/category_b.py` - D029-D048 definitions (20 metrics)
-- [ ] `metrics/definitions/category_c.py` - D049-D073 definitions (25 metrics)
-- [ ] `metrics/definitions/category_d.py` - D074-D109 definitions (36 metrics)
+### Step 2: Metric Definitions (7 files) [COMPLETED]
+- [x] `metrics/__init__.py`
+- [x] `metrics/definitions/__init__.py`
+- [x] `metrics/definitions/base.py` - MetricDefinition, MetricValue dataclasses
+- [x] `metrics/definitions/category_a.py` - D001-D028 definitions (28 metrics)
+- [x] `metrics/definitions/category_b.py` - D029-D048 definitions (20 metrics)
+- [x] `metrics/definitions/category_c.py` - D049-D073 definitions (25 metrics)
+- [x] `metrics/definitions/category_d.py` - D074-D109 definitions (36 metrics)
 
-### Step 3: Calculation Engine (6 files)
-- [ ] `metrics/calculators/__init__.py`
-- [ ] `metrics/calculators/base.py` - BaseCalculator abstract class
-- [ ] `metrics/calculators/helpers.py` - Statistical utilities (mean, median, std, trend)
-- [ ] `metrics/calculators/category_a.py` - Time & productivity calculators
-- [ ] `metrics/calculators/category_b.py` - Tool usage calculators
-- [ ] `metrics/calculators/category_c.py` - File operation calculators
-- [ ] `metrics/calculators/category_d.py` - Model & token calculators
-- [ ] `metrics/engine.py` - DerivedMetricsEngine orchestrator
+### Step 3: Calculation Engine (8 files) [COMPLETED]
+- [x] `metrics/calculators/__init__.py`
+- [x] `metrics/calculators/base.py` - BaseCalculator abstract class
+- [x] `metrics/calculators/helpers.py` - Statistical utilities (mean, median, std, trend)
+- [x] `metrics/calculators/category_a.py` - Time & productivity calculators
+- [x] `metrics/calculators/category_b.py` - Tool usage calculators
+- [x] `metrics/calculators/category_c.py` - File operation calculators
+- [x] `metrics/calculators/category_d.py` - Model & token calculators
+- [x] `metrics/engine.py` - DerivedMetricsEngine orchestrator
 
-### Step 4: CLI Integration (1 file)
-- [ ] Update `cli.py` - Add `metrics` command group
+### Step 4: CLI Integration (1 file) [COMPLETED]
+- [x] Update `cli.py` - Add `metrics` command group
 
 ---
 
@@ -429,17 +599,17 @@ class DerivedMetricsEngine:
 
 ## 4. Visualization System
 
-### 4.1 Terminal Visualization (Rich Library)
+### 4.1 Terminal Visualization (Rich Library) [COMPLETED]
 
 #### Components Checklist
 
-- [ ] **Summary Table** - Key metrics overview
-- [ ] **Sparklines** - Trend indicators (▁▂▃▄▅▆▇█)
-- [ ] **Progress Bars** - Ratio/completion metrics
-- [ ] **Bar Charts** - Distribution visualization
-- [ ] **Panels** - Category groupings
-- [ ] **Trees** - Hierarchical data
-- [ ] **Status Indicators** - Binary/category metrics (✓/✗)
+- [x] **Summary Table** - Key metrics overview
+- [x] **Sparklines** - Trend indicators (▁▂▃▄▅▆▇█)
+- [x] **Progress Bars** - Ratio/completion metrics
+- [x] **Bar Charts** - Distribution visualization
+- [x] **Panels** - Category groupings
+- [ ] **Trees** - Hierarchical data (deferred to future phase)
+- [x] **Status Indicators** - Binary/category metrics (via gauges)
 
 #### Terminal Output Example
 
@@ -480,25 +650,25 @@ class DerivedMetricsEngine:
   Other         ██                                     269 (2.2%)
 ```
 
-### 4.2 HTML Visualization (Plotly + Jinja2)
+### 4.2 HTML Visualization (Plotly + Jinja2) [IMPLEMENTED]
 
 #### Chart Types Checklist
 
-- [ ] **Line Charts** - Time series, trends
-- [ ] **Area Charts** - Cumulative metrics, stacked breakdowns
-- [ ] **Bar Charts** - Distributions, comparisons
-- [ ] **Pie/Donut Charts** - Proportions, breakdowns
-- [ ] **Scatter Plots** - Correlations, relationships
-- [ ] **Heatmaps** - 2D distributions, hourly patterns
-- [ ] **Gauges** - KPIs, ratios, completion rates
-- [ ] **Radar Charts** - Multi-dimensional comparisons
-- [ ] **Treemaps** - Hierarchical breakdowns
-- [ ] **Sankey Diagrams** - Flow visualization
-- [ ] **Network Graphs** - Relationships, dependencies
-- [ ] **Calendar Heatmaps** - Daily activity patterns
-- [ ] **Histograms** - Value distributions
-- [ ] **Box Plots** - Statistical summaries
-- [ ] **Funnel Charts** - Conversion flows
+- [x] **Line Charts** - Time series, trends
+- [x] **Area Charts** - Cumulative metrics, stacked breakdowns
+- [x] **Bar Charts** - Distributions, comparisons
+- [x] **Pie/Donut Charts** - Proportions, breakdowns
+- [x] **Scatter Plots** - Correlations, relationships
+- [x] **Heatmaps** - 2D distributions, hourly patterns
+- [x] **Gauges** - KPIs, ratios, completion rates
+- [ ] **Radar Charts** - Multi-dimensional comparisons (future)
+- [ ] **Treemaps** - Hierarchical breakdowns (future)
+- [ ] **Sankey Diagrams** - Flow visualization (future)
+- [ ] **Network Graphs** - Relationships, dependencies (future)
+- [x] **Calendar Heatmaps** - Daily activity patterns
+- [ ] **Histograms** - Value distributions (future)
+- [ ] **Box Plots** - Statistical summaries (future)
+- [ ] **Funnel Charts** - Conversion flows (future)
 
 #### Dashboard Sections
 

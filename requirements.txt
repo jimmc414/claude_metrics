@@ -1,13 +1,13 @@
 # Core dependencies
 rich>=13.0.0
+jinja2>=3.0.0            # HTML templates
 
 # Development dependencies
 pytest>=7.0.0
 pytest-cov>=4.0.0
 
-# Future phases (uncomment as needed)
-# plotly>=5.0.0          # Phase 3: Visualizations
-# networkx>=3.0          # Phase 3: Graph visualizations
-# pyvis>=0.3.0           # Phase 3: Interactive graphs
-# jinja2>=3.0.0          # Phase 3: HTML templates
-# pandas>=2.0.0          # Phase 2/3: Data manipulation
+# Optional visualization dependencies (install as needed)
+# plotly>=5.0.0          # Interactive charts (loaded via CDN by default)
+# networkx>=3.0          # Graph visualizations
+# pyvis>=0.3.0           # Interactive graphs
+# pandas>=2.0.0          # Data manipulation

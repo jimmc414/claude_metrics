@@ -29,8 +29,10 @@ pip install -r requirements.txt
 
 ## Quick Start
 
+### Raw Data Extraction
+
 ```bash
-# Extract all metrics to default output directory
+# Extract all raw data to default output directory
 claude-metrics extract
 
 # Extract specific sources only
@@ -48,6 +50,89 @@ claude-metrics sources
 # View extraction summary
 claude-metrics summary ./claude_metrics_output
 ```
+
+### Derived Metrics
+
+Calculate 109 derived metrics from your Claude Code usage data:
+
+```bash
+# Calculate all metrics for past 30 days
+python cli.py metrics calculate
+
+# Specify time window
+python cli.py metrics calculate --days 7
+
+# Calculate specific categories only
+python cli.py metrics calculate -c A -c B
+
+# Save results to JSON
+python cli.py metrics calculate --output metrics.json
+
+# List available metrics
+python cli.py metrics list
+
+# List metrics for a specific category
+python cli.py metrics list -c A
+```
+
+### Visual Reports
+
+Generate visual reports in terminal or HTML format:
+
+```bash
+# Generate terminal report for past 30 days
+python cli.py metrics report
+
+# Specify time window
+python cli.py metrics report --days 7
+
+# Use different color theme (default, mono, dark)
+python cli.py metrics report --theme dark
+
+# Show detailed metrics by category
+python cli.py metrics report --detail
+```
+
+#### HTML Dashboard
+
+Generate an interactive HTML dashboard with Plotly charts:
+
+```bash
+# Generate HTML dashboard
+python cli.py metrics report --format html
+
+# Specify output file
+python cli.py metrics report --format html --output dashboard.html
+
+# Specify time window
+python cli.py metrics report --format html --days 7
+```
+
+The HTML dashboard includes interactive charts:
+- Daily activity line charts with session and message trends
+- Hourly activity distribution bar chart
+- Tool usage pie chart and trend line
+- File type distribution and read/edit operations
+- Model usage distribution pie chart
+- Token consumption bar chart
+- Cost trend line and cost by model breakdown
+
+The report includes:
+- Key metrics summary with session counts, costs, and averages
+- Activity patterns with sparklines and time-of-day distribution
+- Tool usage breakdown with bar charts
+- File operations summary
+- Model usage distribution
+- Cost and token metrics with cache efficiency
+
+**Metric Categories:**
+
+| Category | Count | Description |
+|----------|-------|-------------|
+| A | 28 | Time and activity patterns (session duration, active hours, streaks) |
+| B | 20 | Tool usage (distribution, success rates, patterns) |
+| C | 25 | File operations (read/edit frequency, file types, churn) |
+| D | 36 | Model and token metrics (usage distribution, costs, cache efficiency) |
 
 ## Output
 
@@ -95,52 +180,97 @@ claude-metrics/
 ├── redaction.py         # Sensitive data handling
 ├── utils.py             # Utilities
 │
-├── sources/             # Data source extractors
+├── sources/             # Data source extractors (22 sources)
 │   ├── __init__.py
 │   ├── base.py
 │   ├── stats_cache.py
 │   ├── settings.py
-│   ├── global_state.py
-│   ├── credentials.py
-│   ├── history.py
 │   ├── sessions.py
-│   ├── todos.py
-│   ├── plans.py
-│   └── extensions.py
+│   └── ...
+│
+├── extraction/          # Time-filtered data extraction
+│   ├── __init__.py
+│   ├── data_classes.py  # SessionData, ToolCallData, etc.
+│   └── time_filtered.py # TimeFilteredExtractor
+│
+├── metrics/             # Derived metrics system
+│   ├── __init__.py
+│   ├── engine.py        # DerivedMetricsEngine
+│   ├── definitions/     # Metric definitions (109 metrics)
+│   │   ├── base.py      # MetricDefinition, MetricValue
+│   │   ├── category_a.py
+│   │   ├── category_b.py
+│   │   ├── category_c.py
+│   │   └── category_d.py
+│   └── calculators/     # Metric calculators
+│       ├── base.py
+│       ├── helpers.py
+│       ├── category_a.py
+│       ├── category_b.py
+│       ├── category_c.py
+│       └── category_d.py
+│
+├── visualizations/      # Visualization system
+│   ├── __init__.py
+│   ├── terminal/        # Terminal output (Rich library)
+│   │   ├── __init__.py
+│   │   ├── components.py  # Sparklines, bar charts, gauges
+│   │   ├── report.py      # TerminalReport generator
+│   │   └── themes.py      # Color themes
+│   └── html/            # HTML dashboard (Plotly + Jinja2)
+│       ├── __init__.py
+│       ├── generator.py   # DashboardGenerator class
+│       ├── charts/        # Plotly chart wrappers
+│       │   ├── base.py
+│       │   ├── line.py
+│       │   ├── bar.py
+│       │   ├── pie.py
+│       │   ├── gauge.py
+│       │   ├── heatmap.py
+│       │   └── scatter.py
+│       └── templates/     # Jinja2 HTML templates
+│           ├── base.html
+│           └── dashboard.html
 │
 ├── docs/
-│   ├── CLAUDE_CODE_DATA_SOURCES.md    # Claude Code local data reference
-│   ├── CLAUDE_CODE_METRICS_CATALOG.md # Raw data schemas
-│   ├── DERIVED_METRICS_CATALOG.md     # 592 derived metrics with types
-│   ├── IMPLEMENTATION_PLAN.md         # Full project plan
-│   └── BRAINSTORM_METRICS_PROMPT.md   # Metrics brainstorm prompt
+│   ├── CLAUDE_CODE_DATA_SOURCES.md
+│   ├── CLAUDE_CODE_METRICS_CATALOG.md
+│   ├── DERIVED_METRICS_CATALOG.md
+│   └── ...
 │
 └── tests/
-    ├── conftest.py
-    └── test_extractor.py
+    └── ...
 ```
 
 ## Roadmap
 
 ### Phase 1: Raw Data Extraction (Complete)
-- 9 data source extractors
+- 22 data source extractors
 - 18 SQLite tables
 - JSON + SQLite output
 
-### Phase 1.5: Data Validation (Planned)
-- Cross-source consistency checks
-- Data type validation
-- Completeness verification
+### Phase 2: Derived Metrics - Foundation (Complete)
+- 109 derived metrics across 4 categories (A-D)
+- Time-filtered extraction (configurable window)
+- Calculation engine with dependency resolution
+- CLI integration
 
-### Phase 2: Derived Metrics (Planned)
-- 592 computed metrics across 54 categories
-- Behavioral analysis
-- Trend detection
+### Phase 3: Terminal Visualization (Complete)
+- Rich terminal output with sparklines, gauges, and tables
+- Bar charts for distributions
+- Metric panels and summary rows
+- Three color themes (default, mono, dark)
 
-### Phase 3: Visualizations (Planned)
-- Interactive HTML dashboard
-- Time-series charts
-- Network graphs
+### Phase 4: HTML Dashboard (Complete)
+- Interactive HTML dashboard with Plotly.js
+- Line, bar, pie, gauge, heatmap, scatter charts
+- Responsive layout with dark mode support
+- Jinja2 templating for customization
+
+### Phase 2.5: Derived Metrics - Extended (Planned)
+- Categories E-BB (483 additional metrics)
+- Conversation analysis, task management, error recovery
+- Cross-metric correlations
 
 ## Development
 
