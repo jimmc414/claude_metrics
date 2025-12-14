@@ -108,7 +108,7 @@ class DashboardGenerator:
             "active_days": int(self.get_metric("D024", 0)),
             "current_streak": int(self.get_metric("D022", 0)),
             "peak_hour": self.get_metric("D011", 12),
-            "avg_session_duration": self._format_duration_ms(self.get_metric("D007", 0)),
+            "avg_session_duration": self._format_hours(self.get_metric("D007", 0)),
 
             # Tool metrics
             "most_used_tool": self.get_metric("D030", "N/A"),
@@ -366,6 +366,19 @@ class DashboardGenerator:
         if minutes < 60:
             return f"{int(minutes)}m"
         hours = minutes / 60
+        if hours < 24:
+            return f"{hours:.1f}h"
+        days = hours / 24
+        return f"{days:.1f}d"
+
+    @staticmethod
+    def _format_hours(hours: float) -> str:
+        """Format hours as human-readable duration."""
+        if not hours or hours <= 0:
+            return "0m"
+        if hours < 1:
+            minutes = hours * 60
+            return f"{int(minutes)}m"
         if hours < 24:
             return f"{hours:.1f}h"
         days = hours / 24

@@ -68,7 +68,7 @@ class TimeFilteredExtractor:
         """
         data = ExtractedData30Day(
             window_start=self.cutoff,
-            window_end=self._now,
+            window_end=self._now_utc,
             window_days=self.days,
         )
 

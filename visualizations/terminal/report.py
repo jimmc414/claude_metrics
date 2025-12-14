@@ -25,6 +25,7 @@ from .components import (
     create_summary_row,
     format_duration,
     format_duration_ms,
+    format_hours,
     format_currency,
     format_number,
     format_percentage,
@@ -149,7 +150,7 @@ class TerminalReport:
         items2 = [
             (
                 "Avg Session",
-                format_duration_ms(avg_session),
+                format_hours(avg_session),
                 "",
             ),
             (
@@ -217,7 +218,7 @@ class TerminalReport:
             ("Weekly Active Hours", self.get_metric("D002", 0), "hours"),
             ("Monthly Active Hours", self.get_metric("D003", 0), "hours"),
             ("Peak Activity Hour", self.get_metric("D011", "-"), None),
-            ("Longest Session", format_duration_ms(self.get_metric("D006", 0)), None),
+            ("Longest Session", format_hours(self.get_metric("D006", 0)), None),
             ("Current Streak", self.get_metric("D022", 0), "days"),
             ("Longest Streak", self.get_metric("D021", 0), "days"),
         ]

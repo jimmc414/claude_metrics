@@ -215,7 +215,7 @@ class DerivedMetricsEngine:
         """
         categories = {}
         for metric_id, value in self.cache.items():
-            category = metric_id[1] if len(metric_id) > 1 else "?"
+            category = metric_id[0] if len(metric_id) > 0 else "?"
             if category not in categories:
                 categories[category] = {"count": 0, "metrics": []}
             categories[category]["count"] += 1

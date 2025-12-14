@@ -397,6 +397,18 @@ def format_duration_ms(milliseconds: float) -> str:
     return format_duration(milliseconds / 1000)
 
 
+def format_hours(hours: float) -> str:
+    """Format hours as human-readable duration.
+
+    Args:
+        hours: Duration in hours
+
+    Returns:
+        Formatted duration string
+    """
+    return format_duration(hours * 3600)
+
+
 def format_currency(amount: float, symbol: str = "$", precision: int = 2) -> str:
     """Format amount as currency.
 
