@@ -1,0 +1,13 @@
+# Core dependencies
+rich>=13.0.0
+
+# Development dependencies
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# Future phases (uncomment as needed)
+# plotly>=5.0.0          # Phase 3: Visualizations
+# networkx>=3.0          # Phase 3: Graph visualizations
+# pyvis>=0.3.0           # Phase 3: Interactive graphs
+# jinja2>=3.0.0          # Phase 3: HTML templates
+# pandas>=2.0.0          # Phase 2/3: Data manipulation
