@@ -12,6 +12,8 @@ from .data_classes import (
     ToolCallData,
     MessageData,
     ModelUsageData,
+    ToolChainLink,
+    ConversationThread,
 )
 
 
@@ -75,11 +77,14 @@ class TimeFilteredExtractor:
         # Extract from each source
         self._extract_sessions(data)
         self._extract_stats_cache(data)
-        self._aggregate_tool_calls(data)
+        # Note: tool calls are now aggregated directly in _extract_sessions()
         self._aggregate_file_operations(data)
         self._aggregate_model_usage(data)
         self._compute_hourly_distribution(data)
         self._compute_active_dates(data)
+        self._extract_config(data)
+        self._build_conversation_threads(data)
+        self._build_tool_chains(data)
 
         return data
 
@@ -87,10 +92,7 @@ class TimeFilteredExtractor:
         """Extract sessions from JSONL files within the time window."""
         from utils import (
             get_claude_dir,
-            read_jsonl_file,
-            parse_iso_timestamp,
             dir_name_to_project_path,
-            safe_get,
         )
 
         projects_dir = get_claude_dir() / "projects"
@@ -107,7 +109,7 @@ class TimeFilteredExtractor:
                 if not jsonl_file.is_file():
                     continue
 
-                session = self._extract_single_session(
+                session, tool_calls, messages = self._extract_single_session(
                     jsonl_file, project_path
                 )
                 if session is not None:
@@ -119,10 +121,157 @@ class TimeFilteredExtractor:
                     data.total_tokens["output"] += session.total_output_tokens
                     data.total_tokens["cache_read"] += session.total_cache_read_tokens
 
+                    # Aggregate tool calls directly (fixes path conversion bug)
+                    data.tool_calls.extend(tool_calls)
+                    data.total_tool_calls += len(tool_calls)
+                    for tc in tool_calls:
+                        data.tool_counts[tc.tool_name] = (
+                            data.tool_counts.get(tc.tool_name, 0) + 1
+                        )
+
+                        # Aggregate enhanced extraction data for K-N metrics
+                        if tc.web_url:
+                            data.web_urls_fetched.append(tc.web_url)
+                        if tc.search_query:
+                            data.search_queries.append(tc.search_query)
+                        if tc.question_text:
+                            data.questions_asked.append({
+                                "header": tc.question_header,
+                                "text": tc.question_text,
+                                "options": tc.question_options,
+                            })
+                        if tc.tool_name == "Edit" and tc.edit_old_string is not None:
+                            data.edit_operations.append({
+                                "old_string": tc.edit_old_string,
+                                "new_string": tc.edit_new_string,
+                                "replace_all": tc.edit_replace_all,
+                                "file_path": tc.file_path,
+                            })
+
+                    # Aggregate messages
+                    data.messages.extend(messages)
+
+    def _build_conversation_threads(self, data: ExtractedData30Day) -> None:
+        """Build conversation thread trees from uuid/parentUuid linkage."""
+        # Group messages by session
+        session_messages: Dict[str, List[MessageData]] = defaultdict(list)
+        for m in data.messages:
+            session_messages[m.session_id].append(m)
+
+        for session_id, messages in session_messages.items():
+            # Build parent -> children map
+            uuid_map = {m.uuid: m for m in messages if m.uuid}
+            children: Dict[str, List[str]] = defaultdict(list)
+            root_uuids = []
+
+            for m in messages:
+                if m.parent_uuid and m.parent_uuid in uuid_map:
+                    children[m.parent_uuid].append(m.uuid)
+                elif m.uuid:
+                    root_uuids.append(m.uuid)
+
+            # BFS from each root to compute thread stats
+            for root_uuid in root_uuids:
+                max_depth = 0
+                branch_count = 0
+                msg_count = 0
+                sidechain_count = 0
+                stop_reasons: Dict[str, int] = {}
+
+                queue = [(root_uuid, 0)]
+                while queue:
+                    uuid, depth = queue.pop(0)
+                    msg_count += 1
+                    max_depth = max(max_depth, depth)
+
+                    msg = uuid_map.get(uuid)
+                    if msg:
+                        if msg.is_sidechain:
+                            sidechain_count += 1
+                        if msg.stop_reason:
+                            stop_reasons[msg.stop_reason] = (
+                                stop_reasons.get(msg.stop_reason, 0) + 1
+                            )
+
+                    child_list = children.get(uuid, [])
+                    if len(child_list) > 1:
+                        branch_count += 1
+                    for child_uuid in child_list:
+                        queue.append((child_uuid, depth + 1))
+
+                thread = ConversationThread(
+                    session_id=session_id,
+                    root_uuid=root_uuid,
+                    max_depth=max_depth,
+                    branch_count=branch_count,
+                    message_count=msg_count,
+                    sidechain_count=sidechain_count,
+                    stop_reasons=stop_reasons,
+                )
+                data.conversation_threads.append(thread)
+
+    def _build_tool_chains(self, data: ExtractedData30Day) -> None:
+        """Build tool execution chains from consecutive tool calls."""
+        # Group tool calls by session, sorted by timestamp
+        session_tools: Dict[str, List[ToolCallData]] = defaultdict(list)
+        for tc in data.tool_calls:
+            if tc.tool_use_id:
+                session_tools[tc.session_id].append(tc)
+
+        for session_id, tools in session_tools.items():
+            tools.sort(key=lambda t: t.timestamp)
+
+            # Group into chains: consecutive calls in same message or within 60s
+            current_chain: List[ToolChainLink] = []
+            prev_tc = None
+
+            for tc in tools:
+                same_message = (
+                    prev_tc is not None
+                    and tc.message_uuid
+                    and tc.message_uuid == prev_tc.message_uuid
+                )
+                within_window = (
+                    prev_tc is not None
+                    and (tc.timestamp - prev_tc.timestamp).total_seconds() <= 60
+                )
+
+                if current_chain and (same_message or within_window):
+                    current_chain.append(ToolChainLink(
+                        tool_use_id=tc.tool_use_id,
+                        tool_name=tc.tool_name,
+                        message_uuid=tc.message_uuid or "",
+                        session_id=session_id,
+                        timestamp=tc.timestamp,
+                        is_error=tc.is_error,
+                        duration_ms=tc.duration_ms,
+                    ))
+                else:
+                    if len(current_chain) >= 2:
+                        data.tool_chains.append(current_chain)
+                    current_chain = [ToolChainLink(
+                        tool_use_id=tc.tool_use_id,
+                        tool_name=tc.tool_name,
+                        message_uuid=tc.message_uuid or "",
+                        session_id=session_id,
+                        timestamp=tc.timestamp,
+                        is_error=tc.is_error,
+                        duration_ms=tc.duration_ms,
+                    )]
+                prev_tc = tc
+
+            # Don't forget the last chain
+            if len(current_chain) >= 2:
+                data.tool_chains.append(current_chain)
+
     def _extract_single_session(
         self, file_path: Path, project_path: str
-    ) -> Optional[SessionData]:
-        """Extract a single session if it falls within the time window."""
+    ) -> Tuple[Optional[SessionData], List[ToolCallData], List[MessageData]]:
+        """Extract a single session if it falls within the time window.
+
+        Returns:
+            Tuple of (SessionData or None, list of tool calls, list of messages)
+        """
         from utils import read_jsonl_file, parse_iso_timestamp, safe_get
 
         session_id = file_path.stem
@@ -161,6 +310,8 @@ class TimeFilteredExtractor:
                 if first_timestamp is None:
                     first_timestamp = timestamp
                 last_timestamp = timestamp
+            else:
+                continue  # Skip records without timestamps entirely
 
             # Count by type
             if msg_type == "user":
@@ -172,6 +323,11 @@ class TimeFilteredExtractor:
             message = record.get("message", {})
             role = message.get("role")
             model = message.get("model")
+
+            # Extract structural fields
+            parent_uuid = record.get("parentUuid")
+            stop_reason = message.get("stop_reason") or record.get("stopReason")
+            is_sidechain = record.get("isSidechain", False)
 
             if model:
                 models_used.add(model)
@@ -190,25 +346,66 @@ class TimeFilteredExtractor:
             cost_usd = record.get("costUSD", 0) or 0
             total_cost += cost_usd
 
-            # Extract thinking info
+            # Extract thinking info and text content
             content = message.get("content", [])
             has_thinking = False
             thinking_length = 0
             msg_tool_calls = []
+            text_parts = []
 
             if isinstance(content, list):
                 for block in content:
                     if isinstance(block, dict):
                         block_type = block.get("type")
 
-                        if block_type == "thinking":
+                        if block_type == "text":
+                            text_parts.append(block.get("text", ""))
+
+                        elif block_type == "thinking":
                             has_thinking = True
                             thinking_length = len(block.get("thinking", ""))
 
                         elif block_type == "tool_use":
+                            tool_name = block.get("name", "unknown")
+                            tool_input = block.get("input", {})
+
+                            # Extract file_path from tool input for Read/Edit/Write
+                            tool_file_path = None
+                            if tool_name in ("Read", "Edit", "Write"):
+                                tool_file_path = tool_input.get("file_path")
+
+                            # Enhanced extraction for Categories K-N metrics
+                            edit_old_string = None
+                            edit_new_string = None
+                            edit_replace_all = False
+                            web_url = None
+                            search_query = None
+                            question_header = None
+                            question_text = None
+                            question_options = []
+
+                            if tool_name == "Edit":
+                                edit_old_string = tool_input.get("old_string")
+                                edit_new_string = tool_input.get("new_string")
+                                edit_replace_all = tool_input.get("replace_all", False)
+                            elif tool_name == "WebFetch":
+                                web_url = tool_input.get("url")
+                            elif tool_name == "WebSearch":
+                                search_query = tool_input.get("query")
+                            elif tool_name == "AskUserQuestion":
+                                questions = tool_input.get("questions", [])
+                                if questions:
+                                    q = questions[0]  # First question
+                                    question_header = q.get("header")
+                                    question_text = q.get("question")
+                                    question_options = [
+                                        opt.get("label", "")
+                                        for opt in q.get("options", [])
+                                    ]
+
                             tool_call = ToolCallData(
-                                tool_name=block.get("name", "unknown"),
-                                timestamp=timestamp or self._now,
+                                tool_name=tool_name,
+                                timestamp=timestamp or self._now_utc,
                                 session_id=session_id,
                                 message_uuid=record.get("uuid"),
                                 duration_ms=None,
@@ -216,20 +413,35 @@ class TimeFilteredExtractor:
                                 success=True,  # Default, updated by result
                                 is_error=False,
                                 is_interrupted=False,
-                                file_path=None,
+                                file_path=tool_file_path,
+                                tool_use_id=block.get("id"),
+                                edit_old_string=edit_old_string,
+                                edit_new_string=edit_new_string,
+                                edit_replace_all=edit_replace_all,
+                                web_url=web_url,
+                                search_query=search_query,
+                                question_header=question_header,
+                                question_text=question_text,
+                                question_options=question_options,
                             )
                             msg_tool_calls.append(tool_call)
 
-            # Extract tool result info
+            # Assemble text content from blocks
+            text_content = None
+            if isinstance(content, str):
+                text_content = content
+            elif text_parts:
+                text_content = "\n".join(text_parts)
+            if text_content and len(text_content) > 2000:
+                text_content = text_content[:2000]
+
+            # Extract tool result info (for duration, success status)
             tool_result = record.get("toolUseResult")
             if tool_result and isinstance(tool_result, dict):
                 duration_ms = tool_result.get("durationMs")
                 total_duration_ms = tool_result.get("totalDurationMs")
                 is_error = tool_result.get("status") == "error"
                 is_interrupted = tool_result.get("interrupted", False)
-                file_path_result = tool_result.get("filePath") or safe_get(
-                    tool_result, "file", "filePath"
-                )
 
                 # Update the last tool call with result info
                 if msg_tool_calls:
@@ -239,7 +451,6 @@ class TimeFilteredExtractor:
                     last_tool.is_error = is_error
                     last_tool.is_interrupted = is_interrupted
                     last_tool.success = not is_error and not is_interrupted
-                    last_tool.file_path = file_path_result
 
             tool_calls_in_window.extend(msg_tool_calls)
 
@@ -259,12 +470,16 @@ class TimeFilteredExtractor:
                     has_thinking=has_thinking,
                     thinking_length=thinking_length,
                     tool_call_count=len(msg_tool_calls),
+                    content=text_content,
+                    parent_uuid=parent_uuid,
+                    stop_reason=stop_reason,
+                    is_sidechain=is_sidechain,
                 )
                 messages_in_window.append(msg_data)
 
         # Only return session if it has messages in window
         if not session_in_window or not messages_in_window:
-            return None
+            return None, [], []
 
         # Calculate duration
         duration_ms = 0
@@ -295,10 +510,7 @@ class TimeFilteredExtractor:
             is_agent=is_agent,
         )
 
-        # Add messages and tool calls to the main data
-        # (This will be done via data.messages and data.tool_calls)
-
-        return session
+        return session, tool_calls_in_window, messages_in_window
 
     def _extract_stats_cache(self, data: ExtractedData30Day) -> None:
         """Extract from stats-cache.json, filtering by date."""
@@ -320,8 +532,8 @@ class TimeFilteredExtractor:
                 daily = DailyActivity(
                     date=date_str,
                     session_count=day.get("sessionCount", 0),
-                    message_count=day.get("totalMessages", 0),
-                    tool_call_count=day.get("toolCalls", 0),
+                    message_count=day.get("messageCount", 0),
+                    tool_call_count=day.get("toolCallCount", 0),
                     cost_usd=day.get("totalCost", 0.0),
                     input_tokens=day.get("inputTokens", 0),
                     output_tokens=day.get("outputTokens", 0),
@@ -338,80 +550,6 @@ class TimeFilteredExtractor:
                     data.hourly_distribution[hour] = count
             except (ValueError, TypeError):
                 pass
-
-    def _aggregate_tool_calls(self, data: ExtractedData30Day) -> None:
-        """Aggregate tool calls from sessions."""
-        for session in data.sessions:
-            # Re-extract tool calls for this session
-            self._extract_session_tool_calls(session, data)
-
-    def _extract_session_tool_calls(
-        self, session: SessionData, data: ExtractedData30Day
-    ) -> None:
-        """Extract tool calls for a specific session."""
-        from utils import get_claude_dir, read_jsonl_file, parse_iso_timestamp, safe_get
-
-        projects_dir = get_claude_dir() / "projects"
-        # Convert project path back to directory name
-        project_dir_name = session.project_path.replace("/", "-").lstrip("-")
-        session_file = projects_dir / project_dir_name / f"{session.session_id}.jsonl"
-
-        if not session_file.exists():
-            return
-
-        for record in read_jsonl_file(session_file):
-            timestamp_str = record.get("timestamp")
-            timestamp = parse_iso_timestamp(timestamp_str) if timestamp_str else None
-
-            if not self._is_within_window(timestamp):
-                continue
-
-            message = record.get("message", {})
-            content = message.get("content", [])
-
-            if isinstance(content, list):
-                for block in content:
-                    if isinstance(block, dict) and block.get("type") == "tool_use":
-                        tool_name = block.get("name", "unknown")
-
-                        tool_call = ToolCallData(
-                            tool_name=tool_name,
-                            timestamp=timestamp,
-                            session_id=session.session_id,
-                            message_uuid=record.get("uuid"),
-                            duration_ms=None,
-                            total_duration_ms=None,
-                            success=True,
-                            is_error=False,
-                            is_interrupted=False,
-                            file_path=None,
-                        )
-
-                        # Check for tool result
-                        tool_result = record.get("toolUseResult")
-                        if tool_result and isinstance(tool_result, dict):
-                            tool_call.duration_ms = tool_result.get("durationMs")
-                            tool_call.total_duration_ms = tool_result.get(
-                                "totalDurationMs"
-                            )
-                            tool_call.is_error = tool_result.get("status") == "error"
-                            tool_call.is_interrupted = tool_result.get(
-                                "interrupted", False
-                            )
-                            tool_call.success = (
-                                not tool_call.is_error and not tool_call.is_interrupted
-                            )
-                            tool_call.file_path = tool_result.get(
-                                "filePath"
-                            ) or safe_get(tool_result, "file", "filePath")
-
-                        data.tool_calls.append(tool_call)
-                        data.total_tool_calls += 1
-
-                        # Update tool counts
-                        data.tool_counts[tool_name] = (
-                            data.tool_counts.get(tool_name, 0) + 1
-                        )
 
     def _aggregate_file_operations(self, data: ExtractedData30Day) -> None:
         """Aggregate file operations from tool calls."""
@@ -441,21 +579,23 @@ class TimeFilteredExtractor:
         )
 
         for session in data.sessions:
-            for model in session.models_used:
-                # Estimate tokens per model (simplified - assumes even distribution)
-                # A more accurate version would track per-message model usage
-                model_count = len(session.models_used) or 1
+            model_count = len(session.models_used) or 1
+            for i, model in enumerate(session.models_used):
                 model_data[model]["message_count"] += (
                     session.message_count // model_count
+                    + (1 if i < session.message_count % model_count else 0)
                 )
                 model_data[model]["input_tokens"] += (
                     session.total_input_tokens // model_count
+                    + (1 if i < session.total_input_tokens % model_count else 0)
                 )
                 model_data[model]["output_tokens"] += (
                     session.total_output_tokens // model_count
+                    + (1 if i < session.total_output_tokens % model_count else 0)
                 )
                 model_data[model]["cache_read_tokens"] += (
                     session.total_cache_read_tokens // model_count
+                    + (1 if i < session.total_cache_read_tokens % model_count else 0)
                 )
                 model_data[model]["cost_usd"] += session.cost_usd / model_count
 
@@ -493,3 +633,27 @@ class TimeFilteredExtractor:
                 active_dates.add(date_str)
 
         data.active_dates = sorted(active_dates)
+
+    def _extract_config(self, data: ExtractedData30Day) -> None:
+        """Extract customization counts from .claude/ directory."""
+        from utils import get_claude_dir
+
+        claude_dir = get_claude_dir()
+
+        # Count custom agents
+        agents_dir = claude_dir / "agents"
+        if agents_dir.exists():
+            data.custom_agents = len(list(agents_dir.glob("*.md")))
+
+        # Count custom commands
+        commands_dir = claude_dir / "commands"
+        if commands_dir.exists():
+            data.custom_commands = len(list(commands_dir.glob("*.md")))
+
+        # Count custom skills
+        skills_dir = claude_dir / "skills"
+        if skills_dir.exists():
+            # Count directories (each skill is a directory)
+            data.custom_skills = len([
+                d for d in skills_dir.iterdir() if d.is_dir()
+            ])

@@ -31,6 +31,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+mcp = [
+    "mcp>=1.0.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
@@ -38,10 +41,13 @@ dev = [
 
 [project.scripts]
 claude-metrics = "cli:main"
+claude-metrics-mcp = "mcp_server:main"
+
+[tool.setuptools.packages.find]
+include = ["sources*", "extraction*", "metrics*", "visualizations*"]
 
 [tool.setuptools]
-py-modules = ["cli", "database", "metrics_extractor", "redaction", "utils", "__init__"]
-packages = ["sources"]
+py-modules = ["cli", "database", "metrics_extractor", "mcp_server", "redaction", "utils"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

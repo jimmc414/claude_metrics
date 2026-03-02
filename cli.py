@@ -462,7 +462,11 @@ def main():
     metrics_calc_parser.add_argument(
         "--category", "-c",
         action="append",
-        choices=["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"],
+        choices=["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N",
+                 "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+                 "AA", "AB", "AC", "AD", "AE", "AF", "AG", "AH", "AI", "AJ",
+                 "AK", "AL", "AM", "AN", "AO", "AP", "AQ", "AR", "AS", "AT",
+                 "AU", "AV", "AW", "AX", "AY", "AZ", "BA", "BB", "BC"],
         help="Categories to calculate (can repeat, default: all)",
     )
     metrics_calc_parser.add_argument(
@@ -478,7 +482,11 @@ def main():
     )
     metrics_list_parser.add_argument(
         "--category", "-c",
-        choices=["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"],
+        choices=["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N",
+                 "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+                 "AA", "AB", "AC", "AD", "AE", "AF", "AG", "AH", "AI", "AJ",
+                 "AK", "AL", "AM", "AN", "AO", "AP", "AQ", "AR", "AS", "AT",
+                 "AU", "AV", "AW", "AX", "AY", "AZ", "BA", "BB", "BC"],
         help="Filter by category",
     )
     metrics_list_parser.set_defaults(func=cmd_metrics_list)

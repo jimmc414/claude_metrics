@@ -167,11 +167,15 @@ def project_path_to_dir_name(project_path: str) -> str:
 def dir_name_to_project_path(dir_name: str) -> str:
     """Convert Claude's directory name back to a path.
 
-    Converts -mnt-c-python-myproject back to /mnt/c/python/myproject
+    Handles '--' which represents a dot-prefixed component (/.local -> --local).
+    Note: hyphens/underscores in original path components cannot be recovered.
     """
     if dir_name.startswith("-"):
         dir_name = dir_name[1:]
-    return "/" + dir_name.replace("-", "/")
+    # Double-dash represents a dot-prefixed path component
+    dir_name = dir_name.replace("--", "/.")
+    dir_name = dir_name.replace("-", "/")
+    return "/" + dir_name
 
 
 def get_file_stats(path: Path) -> Dict[str, Any]:
